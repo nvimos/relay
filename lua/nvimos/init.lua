@@ -15,6 +15,7 @@ local domains = {} -- name -> { install, uninstall, snapshot }
 local seq = {} -- name -> last seq sent
 local active = {} -- name -> true while installed
 local clients = {} -- chan -> { domains = { name = true } }
+local core_group -- ChanClose watcher, present while any client is attached
 
 function M.version()
   return M.API_VERSION
@@ -47,8 +48,31 @@ function M.active(name)
   return active[name] == true
 end
 
+local refresh
+
+local function watch_channels()
+  local any = next(clients) ~= nil
+  if any and not core_group then
+    core_group = vim.api.nvim_create_augroup('nvimos_core', { clear = true })
+    vim.api.nvim_create_autocmd('ChanClose', {
+      group = core_group,
+      callback = function()
+        local chan = vim.v.event.info and vim.v.event.info.id
+        if chan and clients[chan] then
+          clients[chan] = nil
+          refresh()
+        end
+      end,
+    })
+  elseif not any and core_group then
+    vim.api.nvim_del_augroup_by_id(core_group)
+    core_group = nil
+  end
+end
+
 --- Install the hooks of domains someone subscribes to, remove the rest.
-local function refresh()
+function refresh()
+  watch_channels()
   for name, mod in pairs(domains) do
     local want = false
     for _, c in pairs(clients) do
