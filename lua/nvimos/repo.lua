@@ -53,7 +53,9 @@ end
 --- stderr otherwise.
 function M.git(args, opts)
   opts = opts or {}
-  local cmd = { 'git', '-c', 'core.quotepath=false', '-c', 'color.ui=false' }
+  -- --no-optional-locks: reads like `git status` must not rewrite the index, or the git dir
+  -- watcher reports a change, the GUI refreshes with another `git status`, and so on forever.
+  local cmd = { 'git', '--no-optional-locks', '-c', 'core.quotepath=false', '-c', 'color.ui=false' }
   vim.list_extend(cmd, args)
   local r = vim.system(cmd, { cwd = opts.cwd or M.root(), text = true, stdin = opts.stdin }):wait()
   local ok = false

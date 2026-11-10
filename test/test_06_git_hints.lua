@@ -89,4 +89,19 @@ return {
       h.ok(ev and ev.root:lower() == d2:lower(), vim.inspect(n:events('git')))
     end,
   },
+  {
+    'git hints: reading status does not cause a hint (no feedback loop)',
+    function()
+      local d = h.repo()
+      -- Touch a tracked file so a plain `git status` would refresh the index.
+      vim.uv.fs_utime(d .. '/a.txt', os.time() + 5, os.time() + 5)
+      local n = h.nvim({ cwd = d })
+      n:attach({ 'git' })
+      for _ = 1, 3 do
+        n:lua("return require('nvimos.git').status()")
+      end
+      n:settle(600)
+      h.eq({}, n:events('git'))
+    end,
+  },
 }
