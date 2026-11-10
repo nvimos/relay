@@ -65,6 +65,10 @@ end
 function M.repo()
   local d = M.tmpdir()
   M.git(d, 'init', '-q', '-b', 'main')
+  -- Neovim's git calls use the repo config, not the -c flags of M.git.
+  M.git(d, 'config', 'user.name', 'Test')
+  M.git(d, 'config', 'user.email', 'test@example.com')
+  M.git(d, 'config', 'core.autocrlf', 'false')
   M.write(d .. '/a.txt', { 'one', 'two', 'three', 'four', 'five' })
   M.write(d .. '/b.txt', { 'bee' })
   M.git(d, 'add', '.')
