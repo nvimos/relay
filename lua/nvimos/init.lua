@@ -9,7 +9,7 @@ local M = {}
 M.API_VERSION = 1
 
 -- Built-in domains, loaded on first use from lua/nvimos/domain/<name>.lua.
-local BUILTIN = { 'buffers', 'windows', 'git', 'diagnostics' }
+local BUILTIN = { 'buffers', 'windows', 'git', 'diagnostics', 'jobs' }
 
 local domains = {} -- name -> { install, uninstall, snapshot }
 local seq = {} -- name -> last seq sent

@@ -127,6 +127,7 @@ The git domain's `changed` hint also fires for writes under `backlog/`, `openspe
 10. diagnostics domain.
 11. files: list, read, set_lines, move, create, cli; planning-dir hints.
 12. README: install with lazy.nvim, protocol reference.
+13. jobs: start an agent (`claude -p`) or CLI without blocking; `jobs` domain events.
 
 ## C patch, planned in parallel
 

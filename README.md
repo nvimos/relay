@@ -44,6 +44,7 @@ or below a snapshot's seq are already in it. Domains no client subscribes to cos
 | `windows`     | `focus`, `cursor_moved` (throttled 30 ms), `win_new` (window state), `win_closed` {win} |
 | `git`         | `changed` {root, head, why = {fs, write, files, gitsigns, shell, focus}, paths}, `repo` (new root after :cd) |
 | `diagnostics` | `changed` {buf, name, diagnostics = {lnum, col, end_lnum, end_col, severity, message, source, code}} |
+| `jobs`        | `started`, `finished` {id, label, running, code, stdout, stderr} for commands started with `jobs.start` |
 
 Content deltas: zero-based, end exclusive; lines `[first, old_last)` became `lines`. Only file
 buffers (`buftype` empty) send them. After `loaded` or `reloaded`, fetch the text again.
@@ -74,8 +75,10 @@ buffers (`buftype` empty) send them. After `loaded` or `reloaded`, fetch the tex
 | `nvimos.files.move(from, to)`               | archive a file or folder                                   |
 | `nvimos.files.create(path, lines)`          | new file, no overwrite                                     |
 | `nvimos.files.cli(cmd, args)`               | `openspec` / `backlog` only: `{code, stdout, stderr}`      |
+| `nvimos.jobs.start(cmd, args, {stdin, label})` | start `claude` / `openspec` / `backlog` without blocking Neovim; returns the job id |
+| `nvimos.jobs.get(id)` / `list()` / `cancel(id)` | a job's state and output                                |
 
-(`nvimos.git` is `require('nvimos.git')`, `nvimos.files` is `require('nvimos.files')`.)
+(`nvimos.git`, `nvimos.files` and `nvimos.jobs` are `require('nvimos.git')` and so on.)
 
 A diff file is `{path, old_path, status, binary, additions, deletions, hunks}`; a hunk is
 `{header, old_start, old_count, new_start, new_count, section, lines}`; a line is
