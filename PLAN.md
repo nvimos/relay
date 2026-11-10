@@ -84,6 +84,24 @@ Run with `vim.system` in the repo root. Read calls return parsed data, not raw t
 Hunks use `git apply`, not gitsigns, so they work for files without a buffer. Diffs of large
 ranges may block Neovim; if that shows, move them to a job id plus a `git` `result` event.
 
+### Files (for the Tasks mode)
+
+The frontend's Tasks mode (`~/es/nvimos-meta/poc-nvim-backend/flutter-project-man.md`) reads and
+writes the repo's OpenSpec and Backlog.md files through Neovim. The backend stays generic: it
+lists, reads, edits and moves files; the app parses them.
+
+| Function                          | Does                                                          |
+|-----------------------------------|---------------------------------------------------------------|
+| `files.list(dirs)`                | files under the given repo dirs, with size and mtime          |
+| `files.read(paths)`               | contents of several files; from the buffer if one is loaded   |
+| `files.set_lines(path, edits)`    | replace line ranges through a buffer, then write it           |
+| `files.move(from, to)`            | move a file or folder (archive); renames loaded buffers       |
+| `files.create(path, lines)`       | new file, refuses to overwrite                                |
+| `files.cli(cmd)`                  | run `openspec` / `backlog` with args in the repo, return output |
+
+The git domain's `changed` hint also fires for writes under `backlog/`, `openspec/` and `legacy/`
+(fs watcher on those dirs), so the app refreshes when an agent edits them.
+
 ## Tests
 
 - `nvim -l test/run.lua`: spawns `nvim --embed --headless --clean` with the plugin on the
@@ -107,7 +125,8 @@ ranges may block Neovim; if that shows, move them to a job id plus a `git` `resu
 8. git read functions: branches, log, diff, status.
 9. git write functions: stage/unstage/discard file and hunk, checkout, commit.
 10. diagnostics domain.
-11. README: install with lazy.nvim, protocol reference.
+11. files: list, read, set_lines, move, create, cli; planning-dir hints.
+12. README: install with lazy.nvim, protocol reference.
 
 ## C patch, planned in parallel
 
