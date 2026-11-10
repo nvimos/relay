@@ -17,6 +17,15 @@ function M.connect(host, port)
   return c
 end
 
+--- A free TCP port on 127.0.0.1 (bind to port 0, read it, close).
+function M.free_port()
+  local tcp = vim.uv.new_tcp()
+  tcp:bind('127.0.0.1', 0)
+  local port = tcp:getsockname().port
+  tcp:close()
+  return port
+end
+
 local tmpdirs = {}
 
 function M.tmpdir()

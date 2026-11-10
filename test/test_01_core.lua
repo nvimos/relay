@@ -99,7 +99,7 @@ return {
     function()
       local n = h.nvim()
       n:lua(PROBE)
-      local port = math.random(30000, 40000)
+      local port = h.free_port()
       n:request('nvim_call_function', 'serverstart', { '127.0.0.1:' .. port })
       local c = h.connect('127.0.0.1', port)
       c:attach({ 'probe' })
