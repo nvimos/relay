@@ -31,13 +31,28 @@ local function emit(reason, ev)
   core.emit('windows', reason, ev)
 end
 
+-- Read the focus after the current command finishes: nvim_buf_call and :noautocmd-less helpers
+-- switch buffers for a moment (WinEnter/BufEnter fire), and the client should only see where the
+-- user ends up.
+local focus_pending = false
+
 local function focus()
-  local s = M.state()
-  local key = s.win .. ':' .. s.buf
-  if key ~= last_focus then
-    last_focus = key
-    emit('focus', s)
+  if focus_pending then
+    return
   end
+  focus_pending = true
+  vim.schedule(function()
+    focus_pending = false
+    if not core.active('windows') then
+      return
+    end
+    local s = M.state()
+    local key = s.win .. ':' .. s.buf
+    if key ~= last_focus then
+      last_focus = key
+      emit('focus', s)
+    end
+  end)
 end
 
 local function cursor_soon()

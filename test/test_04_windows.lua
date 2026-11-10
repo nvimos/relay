@@ -74,4 +74,18 @@ return {
       h.eq({}, n:events('windows'))
     end,
   },
+  {
+    'windows: a brief switch inside nvim_buf_call sends no focus for the other buffer',
+    function()
+      local d = h.repo()
+      local n = h.nvim({ cwd = d })
+      n:request('nvim_command', 'edit a.txt')
+      n:attach({ 'windows' })
+      n:lua("require('nvimos.files').set_lines('b.txt', { { first = 0, last = 1, lines = { 'B' } } })")
+      n:settle(100)
+      for _, e in ipairs(n:events('windows')) do
+        h.ok(not (e.name or ''):find('b.txt$'), 'focus on b.txt: ' .. vim.inspect(e))
+      end
+    end,
+  },
 }
