@@ -111,6 +111,17 @@ function Client:lua(code, ...)
   return self:request('nvim_exec_lua', code, { ... })
 end
 
+--- This client's channel id on the server.
+function Client:chan()
+  self._chan = self._chan or self:request('nvim_get_api_info')[1]
+  return self._chan
+end
+
+--- Attach to the given domains (nil: all); returns attach()'s result.
+function Client:attach(domains)
+  return self:lua("return require('nvimos').attach(...)", { chan = self:chan(), domains = domains })
+end
+
 --- The nvimos events received since the last `clear()`.
 function Client:events(domain)
   local out = {}
