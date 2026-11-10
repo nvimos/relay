@@ -48,6 +48,10 @@ function M.active(name)
   return active[name] == true
 end
 
+function M.seq(name)
+  return seq[name]
+end
+
 local refresh
 
 local function watch_channels()
@@ -161,6 +165,11 @@ function M.resync(name)
     error('nvimos: unknown domain ' .. tostring(name), 0)
   end
   return { v = M.API_VERSION, domain = name, seq = seq[name], snapshot = mod.snapshot() }
+end
+
+--- Full text of a buffer; see domain/buffers.lua.
+function M.get_text(buf)
+  return require('nvimos.domain.buffers').get_text(buf)
 end
 
 --- What is attached and installed, for debugging.

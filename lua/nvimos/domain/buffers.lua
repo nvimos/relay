@@ -1,4 +1,5 @@
--- buffers domain: the buffer list, buffer options, renames, writes.
+-- buffers domain: the buffer list, buffer options, renames, writes, and content deltas of file
+-- buffers (buftype empty). Full text only through get_text().
 local core = require('nvimos')
 local api = vim.api
 
@@ -11,6 +12,7 @@ local OPTIONSET = { 'buftype', 'modifiable', 'readonly', 'fileformat', 'bufliste
 
 local group
 local modified = {} -- buf -> last 'modified' value sent
+local attached = {} -- buf -> true while nvim_buf_attach is live
 
 function M.info(buf)
   local o = {}
@@ -46,6 +48,62 @@ local function check_modified(buf)
 end
 M.check_modified = check_modified
 
+-- Content deltas: lines [first, old_last) were replaced by [first, new_last), zero-based.
+-- An attachment can't be removed from outside: when the domain is inactive, the next callback
+-- returns true, which detaches it.
+local function watch(buf)
+  if attached[buf] or not api.nvim_buf_is_loaded(buf) or vim.bo[buf].buftype ~= '' then
+    return
+  end
+  attached[buf] = true
+  api.nvim_buf_attach(buf, false, {
+    on_lines = function(_, b, tick, first, old_last, new_last)
+      if not core.active('buffers') then
+        attached[b] = nil
+        return true
+      end
+      local reason = 'lines_changed'
+      if old_last == first then
+        reason = 'lines_inserted'
+      elseif new_last == first then
+        reason = 'lines_deleted'
+      end
+      emit(reason, {
+        buf = b,
+        tick = tick,
+        first = first,
+        old_last = old_last,
+        new_last = new_last,
+        lines = api.nvim_buf_get_lines(b, first, new_last, false),
+      })
+    end,
+    on_reload = function(_, b)
+      emit('reloaded', { buf = b, tick = api.nvim_buf_get_changedtick(b) })
+    end,
+    on_detach = function(_, b)
+      attached[b] = nil
+    end,
+  })
+end
+
+--- Full text of a buffer, tagged with the buffers seq: deltas with a lower or equal seq are already
+--- in it. watched = false: no deltas will come for it (not a file buffer, or not loaded).
+function M.get_text(buf)
+  if not api.nvim_buf_is_valid(buf) then
+    error('nvimos: invalid buffer ' .. tostring(buf), 0)
+  end
+  if core.active('buffers') then
+    watch(buf)
+  end
+  return {
+    buf = buf,
+    tick = api.nvim_buf_get_changedtick(buf),
+    seq = core.seq('buffers'),
+    watched = attached[buf] == true,
+    lines = api.nvim_buf_get_lines(buf, 0, -1, false),
+  }
+end
+
 function M.install()
   modified = {}
   for _, buf in ipairs(api.nvim_list_bufs()) do
@@ -65,7 +123,11 @@ function M.install()
     emit('added', M.info(a.buf))
   end)
   au({ 'BufReadPost', 'BufNewFile' }, function(a)
+    watch(a.buf)
     emit('loaded', M.info(a.buf))
+  end)
+  au({ 'BufEnter', 'BufWinEnter' }, function(a)
+    watch(a.buf)
   end)
   au('BufUnload', function(a)
     emit('unloaded', { buf = a.buf })
@@ -94,6 +156,9 @@ function M.install()
       option(api.nvim_get_current_buf(), a.match)
     end
   end, OPTIONSET)
+  for _, buf in ipairs(api.nvim_list_bufs()) do
+    watch(buf)
+  end
 end
 
 function M.uninstall()
