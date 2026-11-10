@@ -167,6 +167,28 @@ function M.resync(name)
   return { v = M.API_VERSION, domain = name, seq = seq[name], snapshot = mod.snapshot() }
 end
 
+M.DEFAULT_ADDRESS = '127.0.0.1:6666'
+
+--- Listen for clients on `addr` (default 127.0.0.1:6666) in a running Neovim. Returns the address.
+function M.serve(addr)
+  addr = addr or M.DEFAULT_ADDRESS
+  if not vim.tbl_contains(vim.fn.serverlist(), addr) then
+    vim.fn.serverstart(addr)
+  end
+  vim.notify('nvimos: listening on ' .. addr)
+  return addr
+end
+
+--- Edit a working-tree file at a line; see nav.lua.
+function M.open(path, lnum, col)
+  return require('nvimos.nav').open(path, lnum, col)
+end
+
+--- Show a file as it is on a revision, read-only; see nav.lua.
+function M.show(rev, path, lnum, col)
+  return require('nvimos.nav').show(rev, path, lnum, col)
+end
+
 --- Full text of a buffer; see domain/buffers.lua.
 function M.get_text(buf)
   return require('nvimos.domain.buffers').get_text(buf)
