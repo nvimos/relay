@@ -114,4 +114,22 @@ return {
       h.ok(vim.tbl_contains(ev.paths, 'openspec/changes/1-first/design.md'), vim.inspect(ev.paths))
     end,
   },
+  {
+    'files: reading 300 files is quick (no git call per file)',
+    function()
+      local d = h.repo()
+      local paths = {}
+      for i = 1, 300 do
+        local p = ('backlog/tasks/task-%d - t.md'):format(i)
+        h.write(d .. '/' .. p, { '---', 'id: TASK-' .. i, '---' })
+        paths[#paths + 1] = p
+      end
+      local n = h.nvim({ cwd = d })
+      local t0 = vim.uv.hrtime()
+      local r = F(n, 'read', paths)
+      local ms = (vim.uv.hrtime() - t0) / 1e6
+      h.eq(300, #r)
+      h.ok(ms < 2000, ('took %d ms'):format(ms))
+    end,
+  },
 }

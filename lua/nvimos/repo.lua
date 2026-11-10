@@ -28,12 +28,19 @@ function M.info(cwd)
   }
 end
 
---- Root of the current repo; errors outside one.
+local roots = {} -- cwd -> repo root; a git call per lookup is far too slow on Windows
+
+--- Root of the current repo; errors outside one. Cached per cwd.
 function M.root()
-  local info = M.info()
-  if not info then
-    error('nvimos: ' .. vim.fn.getcwd() .. ' is not in a git repo', 0)
+  local cwd = vim.fs.normalize(vim.fn.getcwd())
+  if roots[cwd] then
+    return roots[cwd]
   end
+  local info = M.info(cwd)
+  if not info then
+    error('nvimos: ' .. cwd .. ' is not in a git repo', 0)
+  end
+  roots[cwd] = info.root
   return info.root
 end
 
