@@ -18,7 +18,11 @@ local function new()
 end
 
 function Client:_reader()
-  local unpack = vim.mpack.Unpacker()
+  -- Buffer, Window and Tabpage handles are ext types 0, 1, 2 holding an integer.
+  local function handle(_, data)
+    return vim.mpack.decode(data)
+  end
+  local unpack = vim.mpack.Unpacker({ ext = { [0] = handle, [1] = handle, [2] = handle } })
   return function(err, data)
     assert(not err, err)
     if not data then
