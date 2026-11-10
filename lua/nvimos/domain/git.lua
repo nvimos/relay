@@ -82,13 +82,13 @@ local function unwatch()
   watchers = {}
 end
 
-local function watch_dir(dir, filter, why)
+local function watch_dir(dir, filter, why, prefix)
   local w = vim.uv.new_fs_event()
   local ok = w:start(dir, { recursive = true }, function(err, name)
     if err or not name or not filter(name) then
       return
     end
-    M.hint(why, (name:gsub('\\', '/')))
+    M.hint(why, (prefix or '') .. name:gsub('\\', '/'))
   end)
   if ok then
     watchers[#watchers + 1] = w
@@ -97,8 +97,12 @@ local function watch_dir(dir, filter, why)
   end
 end
 
--- Extra watchers other modules add (e.g. the planning dirs); called again after a repo change.
-M.extra_watches = {}
+-- Planning dirs of the Tasks mode: edits there (by an agent, a CLI, an editor) send why=files.
+local PLANNING = { 'backlog', 'openspec', 'legacy' }
+
+local function planning_file(name)
+  return not name:match('%.swp$') and not name:match('~$') and not name:match('%.tmp$')
+end
 
 local function rewatch()
   unwatch()
@@ -109,8 +113,11 @@ local function rewatch()
   if info.common_dir ~= info.git_dir then
     watch_dir(info.common_dir, relevant, 'fs')
   end
-  for _, fn in ipairs(M.extra_watches) do
-    fn(info, watch_dir)
+  for _, sub in ipairs(PLANNING) do
+    local dir = info.root .. '/' .. sub
+    if vim.fn.isdirectory(dir) == 1 then
+      watch_dir(dir, planning_file, 'files', sub .. '/')
+    end
   end
 end
 
