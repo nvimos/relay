@@ -1,7 +1,8 @@
 -- Files of the repo for the GUI's Tasks mode (OpenSpec, Backlog.md). Generic on purpose: the app
 -- parses; this lists, reads, edits through buffers, moves and creates. Paths are relative to the
--- repo root, with forward slashes.
-local repo = require('nvimos.repo')
+-- planning folder (the repo root, or the folder its `.nvimos` names; see tracking.lua), with forward
+-- slashes.
+local repo = require('nvimos.tracking')
 local api = vim.api
 
 local M = {}
@@ -23,7 +24,7 @@ local function loaded_buf(full)
   end
 end
 
---- Every file under the given dirs (relative to the root): { { path, size, mtime } }, sorted.
+--- Every file under the given dirs (relative to the planning folder): { { path, size, mtime } }, sorted.
 --- Missing dirs are skipped.
 function M.list(dirs)
   local root = repo.root()
@@ -163,7 +164,7 @@ end
 
 local CLIS = { openspec = true, backlog = true }
 
---- Run the openspec or backlog CLI in the repo root: { code, stdout, stderr }. code -1 when the
+--- Run the openspec or backlog CLI in the planning folder: { code, stdout, stderr }. code -1 when the
 --- tool isn't installed.
 function M.cli(cmd, args)
   if not CLIS[cmd] then

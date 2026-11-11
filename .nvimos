@@ -1,0 +1,5 @@
+# nvimos: where the planning for this repo lives (Backlog.md tasks, OpenSpec changes).
+# tracking: the planning repo; ~ and paths relative to this file work.
+# project: this repo's label there, for the project filter.
+tracking = ../nvimos-meta
+project = backend

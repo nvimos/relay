@@ -4,6 +4,7 @@
 -- Hints are debounced; one `changed` event carries every reason seen in the window.
 local core = require('nvimos')
 local repo = require('nvimos.repo')
+local tracking = require('nvimos.tracking')
 local api = vim.api
 
 local M = {}
@@ -97,7 +98,7 @@ local function watch_dir(dir, filter, why, prefix)
   end
 end
 
--- Planning dirs of the Tasks mode: edits there (by an agent, a CLI, an editor) send why=files.
+-- Planning dirs of the Tasks mode (in the planning folder, see tracking.lua): edits there (by an agent, a CLI, an editor) send why=files.
 local PLANNING = { 'backlog', 'openspec', 'legacy' }
 
 local function planning_file(name)
@@ -113,8 +114,10 @@ local function rewatch()
   if info.common_dir ~= info.git_dir then
     watch_dir(info.common_dir, relevant, 'fs')
   end
+  -- the planning folder: the repo root, or the folder its .nvimos names
+  local ok, planning = pcall(tracking.root)
   for _, sub in ipairs(PLANNING) do
-    local dir = info.root .. '/' .. sub
+    local dir = (ok and planning or info.root) .. '/' .. sub
     if vim.fn.isdirectory(dir) == 1 then
       watch_dir(dir, planning_file, 'files', sub .. '/')
     end
