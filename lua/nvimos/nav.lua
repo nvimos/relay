@@ -18,6 +18,13 @@ local function find_buf(path)
   end
 end
 
+-- The current buffer has unsaved changes: split, so it stays in view and the new one gets a window.
+local function keep_modified()
+  if vim.bo.modified then
+    vim.cmd('split')
+  end
+end
+
 -- Focus a window in this tab showing `buf`, or show it in the current window.
 local function show_buf(buf)
   for _, win in ipairs(api.nvim_tabpage_list_wins(0)) do
@@ -26,6 +33,7 @@ local function show_buf(buf)
       return win
     end
   end
+  keep_modified()
   api.nvim_win_set_buf(0, buf)
   return api.nvim_get_current_win()
 end
@@ -51,6 +59,7 @@ function M.open(path, lnum, col)
   if buf then
     win = show_buf(buf)
   else
+    keep_modified()
     vim.cmd.edit(vim.fn.fnameescape(full))
     win = api.nvim_get_current_win()
     buf = api.nvim_get_current_buf()
