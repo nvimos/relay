@@ -1,5 +1,7 @@
 # nvimos-poc-backend
 
+[![test](https://github.com/nvimos/relay/actions/workflows/test.yml/badge.svg)](https://github.com/nvimos/relay/actions/workflows/test.yml)
+
 A Neovim plugin that makes Neovim the source of truth for a GUI: it streams typed, ordered events
 for editor state over msgpack-RPC and runs every git and file action the GUI offers. The GUI is
 `~/es/nvimos-poc-frontend` (Flutter, Windows). Plan and decisions: [PLAN.md](PLAN.md).
