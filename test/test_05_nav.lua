@@ -59,4 +59,17 @@ return {
       h.eq(1, c:attach({ 'windows' }).v)
     end,
   },
+  {
+    'nav: :NvimosServeStop closes the listening socket',
+    function()
+      local n = h.nvim()
+      local port = h.free_port()
+      local addr = '127.0.0.1:' .. port
+      n:request('nvim_command', 'NvimosServe ' .. addr)
+      h.ok(vim.tbl_contains(n:request('nvim_call_function', 'serverlist', {}), addr), 'listening')
+      n:request('nvim_command', 'NvimosServeStop')
+      h.ok(not vim.tbl_contains(n:request('nvim_call_function', 'serverlist', {}), addr), 'stopped')
+      h.eq(nil, n:lua("return require('nvimos').serve_stop(...)", addr))
+    end,
+  },
 }

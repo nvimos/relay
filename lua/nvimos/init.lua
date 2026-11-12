@@ -175,7 +175,24 @@ function M.serve(addr)
   if not vim.tbl_contains(vim.fn.serverlist(), addr) then
     vim.fn.serverstart(addr)
   end
+  M.served = addr
   vim.notify('nvimos: listening on ' .. addr)
+  return addr
+end
+
+--- Stop listening on `addr` (default: the address `serve` last started, else 127.0.0.1:6666).
+--- Connected clients stay attached. Returns the address, or nil if it was not listening.
+function M.serve_stop(addr)
+  addr = addr or M.served or M.DEFAULT_ADDRESS
+  if M.served == addr then
+    M.served = nil
+  end
+  if not vim.tbl_contains(vim.fn.serverlist(), addr) then
+    vim.notify('nvimos: not listening on ' .. addr)
+    return nil
+  end
+  vim.fn.serverstop(addr)
+  vim.notify('nvimos: stopped listening on ' .. addr)
   return addr
 end
 

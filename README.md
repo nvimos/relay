@@ -17,6 +17,7 @@ Then let the GUI connect, either at startup or later:
 ```
 nvim --listen 127.0.0.1:6666
 :NvimosServe                 " in a running Neovim; or :NvimosServe 127.0.0.1:7777
+:NvimosServeStop             " stop listening again (clients already connected stay)
 ```
 
 `:NvimosStatus` shows attached clients, active domains and sequence numbers.
@@ -60,6 +61,7 @@ buffers (`buftype` empty) send them. After `loaded` or `reloaded`, fetch the tex
 | `nvimos.open(path, lnum, col)`              | edit a work-tree file at a line (path relative to the repo root) |
 | `nvimos.show(rev, path, lnum, col)`         | read-only buffer `nvimos://<rev>/<path>` at a line         |
 | `nvimos.serve(addr)`                        | start listening (`:NvimosServe`)                           |
+| `nvimos.serve_stop(addr)`                   | stop listening (`:NvimosServeStop`); clients stay attached |
 | `nvimos.git.branches()`                     | `{current, branches = {name, sha, upstream, current, date, subject}}` |
 | `nvimos.git.log(base, head, max)`           | commits in `base..head`                                    |
 | `nvimos.git.diff(base, head)`               | `{base, head, merge_base, files}` for `base...head`        |
