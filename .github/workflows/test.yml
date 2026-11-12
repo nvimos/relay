@@ -10,6 +10,11 @@ jobs:
   test:
     runs-on: windows-latest
     timeout-minutes: 15
+    env:
+      # The default %TEMP% is an 8.3 short path (C:\Users\RUNNER~1); git reports the long one, so
+      # the tests' path comparisons fail. The runner's own temp dir has no short parts.
+      TEMP: ${{ runner.temp }}
+      TMP: ${{ runner.temp }}
     steps:
       - uses: actions/checkout@v4
       - uses: rhysd/action-setup-vim@v1
