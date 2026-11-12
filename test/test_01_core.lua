@@ -116,4 +116,27 @@ return {
       h.eq({}, n:lua("return require('nvimos').status().active"))
     end,
   },
+  {
+    'core: without ChanClose (stable Neovim), a closed client is dropped by polling',
+    function()
+      local n = h.nvim()
+      n:request('nvim_set_var', 'nvimos_chan_poll', true)
+      n:lua(PROBE)
+      local port = h.free_port()
+      n:request('nvim_call_function', 'serverstart', { '127.0.0.1:' .. port })
+      local c = h.connect('127.0.0.1', port)
+      c:attach({ 'probe' })
+      h.eq(1, #n:lua("return require('nvimos').status().clients"))
+      n:lua("require('nvimos').emit('probe', 'tick', {})")
+      h.ok(c:wait_for(function(ev)
+        return ev.reason == 'tick'
+      end), 'tcp client got the event')
+      c:close()
+      vim.wait(4000, function()
+        return #n:lua("return require('nvimos').status().clients") == 0
+      end, 20)
+      h.eq({}, n:lua("return require('nvimos').status()").clients)
+      h.eq({}, n:lua("return require('nvimos').status().active"))
+    end,
+  },
 }

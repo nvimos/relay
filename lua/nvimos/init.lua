@@ -15,7 +15,7 @@ local domains = {} -- name -> { install, uninstall, snapshot }
 local seq = {} -- name -> last seq sent
 local active = {} -- name -> true while installed
 local clients = {} -- chan -> { domains = { name = true } }
-local core_group -- ChanClose watcher, present while any client is attached
+local core_group -- ChanClose watcher, present while any client is attached (see watch_channels)
 
 function M.version()
   return M.API_VERSION
@@ -54,9 +54,29 @@ end
 
 local refresh
 
+-- Drop clients whose channel closed. With the ChanClose event (newer Neovim) on that;
+-- without it (stable), by checking every POLL_MS whether each client's channel still exists.
+-- vim.g.nvimos_chan_poll = true forces the polling (tests).
+local POLL_MS = 1000
+local poll_timer
+
+local function drop_closed()
+  local gone = false
+  for chan in pairs(clients) do
+    if vim.tbl_isempty(vim.api.nvim_get_chan_info(chan)) then
+      clients[chan] = nil
+      gone = true
+    end
+  end
+  if gone then
+    refresh()
+  end
+end
+
 local function watch_channels()
   local any = next(clients) ~= nil
-  if any and not core_group then
+  local event = vim.fn.exists('##ChanClose') == 1 and not vim.g.nvimos_chan_poll
+  if any and event and not core_group then
     core_group = vim.api.nvim_create_augroup('nvimos_core', { clear = true })
     vim.api.nvim_create_autocmd('ChanClose', {
       group = core_group,
@@ -68,9 +88,19 @@ local function watch_channels()
         end
       end,
     })
-  elseif not any and core_group then
-    vim.api.nvim_del_augroup_by_id(core_group)
-    core_group = nil
+  elseif any and not event and not poll_timer then
+    poll_timer = vim.uv.new_timer()
+    poll_timer:start(POLL_MS, POLL_MS, vim.schedule_wrap(drop_closed))
+  elseif not any then
+    if core_group then
+      vim.api.nvim_del_augroup_by_id(core_group)
+      core_group = nil
+    end
+    if poll_timer then
+      poll_timer:stop()
+      poll_timer:close()
+      poll_timer = nil
+    end
   end
 end
 
