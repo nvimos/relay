@@ -136,6 +136,59 @@ return {
     end,
   },
   {
+    'git write: merge makes a merge commit on the base, checking it out first',
+    function()
+      local d = h.repo()
+      h.git(d, 'checkout', '-q', '-b', 'feature')
+      h.write(d .. '/b.txt', { 'feature' })
+      h.git(d, 'commit', '-q', '-am', 'feature work')
+      local n = h.nvim({ cwd = d }) -- on feature; the base main is not checked out
+      local sha = n:lua("return require('nvimos.git').merge(...)", 'main', 'feature')
+      h.eq(40, #sha)
+      h.eq('main', n:lua("return require('nvimos.git').status()").branch)
+      h.eq(2, #vim.split(vim.trim(h.git(d, 'log', '-1', '--format=%P')), ' '))
+      h.eq({ 'feature' }, vim.fn.readfile(d .. '/b.txt'))
+      local ok, err = pcall(n.lua, n, "return require('nvimos.git').merge(...)", 'main', 'feature')
+      h.ok(not ok and tostring(err):find('nothing that main lacks'), tostring(err))
+    end,
+  },
+  {
+    'git write: a conflicting merge is undone and names the files',
+    function()
+      local d = h.repo()
+      h.git(d, 'checkout', '-q', '-b', 'feature')
+      h.write(d .. '/b.txt', { 'feature' })
+      h.git(d, 'commit', '-q', '-am', 'feature work')
+      h.git(d, 'checkout', '-q', 'main')
+      h.write(d .. '/b.txt', { 'main' })
+      h.git(d, 'commit', '-q', '-am', 'main work')
+      local n = h.nvim({ cwd = d })
+      local ok, err = pcall(n.lua, n, "return require('nvimos.git').merge(...)", 'main', 'feature')
+      h.ok(not ok and tostring(err):find('conflict in b.txt'), tostring(err))
+      h.eq({ 'main' }, vim.fn.readfile(d .. '/b.txt'))
+      h.eq('', vim.trim(h.git(d, 'status', '--porcelain', '--untracked-files=no')))
+    end,
+  },
+  {
+    'git write: merge refuses a dirty tree, a non-branch base and the same branch twice',
+    function()
+      local d = h.repo()
+      h.git(d, 'checkout', '-q', '-b', 'feature')
+      h.write(d .. '/b.txt', { 'feature' })
+      h.git(d, 'commit', '-q', '-am', 'feature work')
+      h.git(d, 'checkout', '-q', 'main')
+      local n = h.nvim({ cwd = d })
+      local function merge(b, hd)
+        local ok, err = pcall(n.lua, n, "return require('nvimos.git').merge(...)", b, hd)
+        return not ok and tostring(err) or nil
+      end
+      h.ok((merge('main', 'main') or ''):find('the same'), 'same')
+      h.ok((merge('HEAD~1', 'feature') or ''):find('local branch'), 'not a branch')
+      h.write(d .. '/a.txt', { 'dirty' })
+      h.ok((merge('main', 'feature') or ''):find('commit or discard'), 'dirty')
+    end,
+  },
+  {
     'git write: commit the index, refuse an empty message',
     function()
       local d = h.repo()
