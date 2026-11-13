@@ -247,8 +247,8 @@ function M.discard_hunk(path, hunk)
   return true
 end
 
---- Switch to a branch. Refuses with uncommitted changes to tracked files or unsaved buffers.
-function M.checkout(branch)
+--- Refuse to switch branches or merge over unsaved buffers or uncommitted changes to tracked files.
+local function require_clean(what)
   local root = repo.root():lower()
   for _, buf in ipairs(api.nvim_list_bufs()) do
     local name = vim.fs.normalize(api.nvim_buf_get_name(buf)):lower()
@@ -257,11 +257,49 @@ function M.checkout(branch)
     end
   end
   if vim.trim(repo.git({ 'status', '--porcelain', '--untracked-files=no' })) ~= '' then
-    error('nvimos: commit or discard your changes before switching branches', 0)
+    error('nvimos: commit or discard your changes before ' .. what, 0)
   end
+end
+
+--- Switch to a branch. Refuses with uncommitted changes to tracked files or unsaved buffers.
+function M.checkout(branch)
+  require_clean('switching branches')
   repo.git({ 'checkout', '-q', branch })
   reload()
   return true
+end
+
+--- Merge `head` into the local branch `base` with a merge commit (`--no-ff`), checking `base` out
+--- first when it is not the current branch. Local only: nothing is pushed. A conflict is undone
+--- (`merge --abort`) and reported with the files; returns the new HEAD's sha.
+function M.merge(base, head)
+  if base == head then
+    error('nvimos: base and head are the same', 0)
+  end
+  local ok = pcall(repo.git, { 'show-ref', '--verify', '-q', 'refs/heads/' .. base })
+  if not ok then
+    error('nvimos: the base must be a local branch: ' .. base, 0)
+  end
+  if vim.trim(repo.git({ 'rev-list', '--count', base .. '..' .. head })) == '0' then
+    error(('nvimos: %s has nothing that %s lacks'):format(head, base), 0)
+  end
+  require_clean('merging')
+  local current = vim.trim(repo.git({ 'branch', '--show-current' }))
+  if current ~= base then
+    repo.git({ 'checkout', '-q', base })
+  end
+  local merged, err = pcall(repo.git, { 'merge', '--no-ff', '-m', ("Merge branch '%s' into %s"):format(head, base), head })
+  if not merged then
+    local files = vim.trim(repo.git({ 'diff', '--name-only', '--diff-filter=U' }))
+    pcall(repo.git, { 'merge', '--abort' })
+    reload()
+    if files ~= '' then
+      error('nvimos: merge conflict in ' .. table.concat(vim.split(files, '\n'), ', ') .. ' (merge undone)', 0)
+    end
+    error(err, 0)
+  end
+  reload()
+  return vim.trim(repo.git({ 'rev-parse', 'HEAD' }))
 end
 
 --- Commit the index with `message`. Returns the new commit's sha.
