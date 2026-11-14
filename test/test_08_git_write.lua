@@ -136,6 +136,26 @@ return {
     end,
   },
   {
+    'git write: checkout can stash the changes or force them away',
+    function()
+      local d = h.repo()
+      h.git(d, 'checkout', '-q', '-b', 'other')
+      h.write(d .. '/a.txt', { 'other' })
+      h.git(d, 'commit', '-q', '-am', 'other')
+      h.git(d, 'checkout', '-q', 'main')
+      local n = h.nvim({ cwd = d })
+      h.write(d .. '/a.txt', { 'dirty' })
+      n:lua("return require('nvimos.git').checkout(...)", 'other', 'stash')
+      h.eq('other', n:lua("return require('nvimos.git').status()").branch)
+      h.ok(h.git(d, 'stash', 'list'):find('before switching to other', 1, true))
+      h.git(d, 'checkout', '-q', 'main')
+      h.write(d .. '/a.txt', { 'dirty again' })
+      n:lua("return require('nvimos.git').checkout(...)", 'other', 'force')
+      h.eq('other', n:lua("return require('nvimos.git').status()").branch)
+      h.eq(0, #n:lua("return require('nvimos.git').status()").files)
+    end,
+  },
+  {
     'git write: merge makes a merge commit on the base, checking it out first',
     function()
       local d = h.repo()

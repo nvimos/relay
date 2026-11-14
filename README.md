@@ -73,7 +73,7 @@ buffers (`buftype` empty) send them. After `loaded` or `reloaded`, fetch the tex
 | `nvimos.git.diff_file(path, staged)`        | one file's hunks (untracked: all added)                    |
 | `nvimos.git.stage / unstage / discard(path)` | whole file                                               |
 | `nvimos.git.stage_hunk / unstage_hunk / discard_hunk(path, {old_start, new_start})` | one hunk |
-| `nvimos.git.checkout(branch)`               | refuses with uncommitted changes or unsaved buffers        |
+| `nvimos.git.checkout(branch, how)`          | refuses with uncommitted changes or unsaved buffers; `how` = `'stash'` or `'force'` takes the changes along or throws them away |
 | `nvimos.git.commit(message)`                | new commit's sha                                           |
 | `nvimos.files.list(dirs)`                   | `{path, size, mtime}` under repo dirs                      |
 | `nvimos.files.read(paths)`                  | `{path, exists, buffer, lines}`; an open buffer wins       |

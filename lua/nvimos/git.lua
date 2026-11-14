@@ -248,7 +248,7 @@ function M.discard_hunk(path, hunk)
 end
 
 --- Refuse to switch branches or merge over unsaved buffers or uncommitted changes to tracked files.
-local function require_clean(what)
+local function require_clean(what, allow_changes)
   local root = repo.root():lower()
   for _, buf in ipairs(api.nvim_list_bufs()) do
     local name = vim.fs.normalize(api.nvim_buf_get_name(buf)):lower()
@@ -256,15 +256,33 @@ local function require_clean(what)
       error('nvimos: unsaved changes in ' .. api.nvim_buf_get_name(buf), 0)
     end
   end
-  if vim.trim(repo.git({ 'status', '--porcelain', '--untracked-files=no' })) ~= '' then
+  if not allow_changes and vim.trim(repo.git({ 'status', '--porcelain', '--untracked-files=no' })) ~= '' then
     error('nvimos: commit or discard your changes before ' .. what, 0)
   end
 end
 
---- Switch to a branch. Refuses with uncommitted changes to tracked files or unsaved buffers.
-function M.checkout(branch)
-  require_clean('switching branches')
-  repo.git({ 'checkout', '-q', branch })
+--- Switch to a branch. Refuses with uncommitted changes to tracked files or unsaved buffers, unless
+--- `how` says what to do with the changes: 'stash' stashes them first (put back when the checkout
+--- fails), 'force' throws them away. Unsaved buffers always refuse.
+function M.checkout(branch, how)
+  if how == vim.NIL then
+    how = nil
+  end
+  require_clean('switching branches', how ~= nil)
+  if how == 'stash' then
+    local msg = 'nvimos: before switching to ' .. branch
+    repo.git({ 'stash', 'push', '-q', '-m', msg })
+    local ok, err = pcall(repo.git, { 'checkout', '-q', branch })
+    if not ok then
+      pcall(repo.git, { 'stash', 'pop', '-q' })
+      reload()
+      error(err, 0)
+    end
+  elseif how == 'force' then
+    repo.git({ 'checkout', '-q', '-f', branch })
+  else
+    repo.git({ 'checkout', '-q', branch })
+  end
   reload()
   return true
 end
