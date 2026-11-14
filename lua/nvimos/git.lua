@@ -320,6 +320,39 @@ function M.merge(base, head)
   return vim.trim(repo.git({ 'rev-parse', 'HEAD' }))
 end
 
+--- Rebase the local branch `head` onto `base`, checking `head` out first when it is not the current
+--- branch. Local only: nothing is pushed. A conflict is undone (`rebase --abort`) and reported with
+--- the files. Returns 'up-to-date' when `head` already has all of `base`, else the new HEAD's sha.
+function M.rebase(base, head)
+  if base == head then
+    error('nvimos: base and head are the same', 0)
+  end
+  local ok = pcall(repo.git, { 'show-ref', '--verify', '-q', 'refs/heads/' .. head })
+  if not ok then
+    error('nvimos: the head must be a local branch: ' .. head, 0)
+  end
+  if vim.trim(repo.git({ 'rev-list', '--count', head .. '..' .. base })) == '0' then
+    return 'up-to-date'
+  end
+  require_clean('rebasing')
+  local current = vim.trim(repo.git({ 'branch', '--show-current' }))
+  if current ~= head then
+    repo.git({ 'checkout', '-q', head })
+  end
+  local rebased, err = pcall(repo.git, { 'rebase', base })
+  if not rebased then
+    local files = vim.trim(repo.git({ 'diff', '--name-only', '--diff-filter=U' }))
+    pcall(repo.git, { 'rebase', '--abort' })
+    reload()
+    if files ~= '' then
+      error('nvimos: rebase conflict in ' .. table.concat(vim.split(files, '\n'), ', ') .. ' (rebase undone)', 0)
+    end
+    error(err, 0)
+  end
+  reload()
+  return vim.trim(repo.git({ 'rev-parse', 'HEAD' }))
+end
+
 --- Commit the index with `message`. Returns the new commit's sha.
 function M.commit(message)
   if vim.trim(message or '') == '' then

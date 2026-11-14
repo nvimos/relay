@@ -209,6 +209,37 @@ return {
     end,
   },
   {
+    'git write: rebase puts head on top of base, says when there is nothing to do, undoes a conflict',
+    function()
+      local d = h.repo()
+      h.git(d, 'checkout', '-q', '-b', 'feature')
+      h.write(d .. '/b.txt', { 'feature' })
+      h.git(d, 'add', 'b.txt')
+      h.git(d, 'commit', '-q', '-m', 'feature work')
+      h.git(d, 'checkout', '-q', 'main')
+      h.write(d .. '/c.txt', { 'main' })
+      h.git(d, 'add', 'c.txt')
+      h.git(d, 'commit', '-q', '-m', 'main work')
+      local n = h.nvim({ cwd = d }) -- on main; the head feature is not checked out
+      local rebase = "return require('nvimos.git').rebase(...)"
+      local sha = n:lua(rebase, 'main', 'feature')
+      h.eq(40, #sha)
+      h.eq('feature', n:lua("return require('nvimos.git').status()").branch)
+      h.eq(1, #vim.split(vim.trim(h.git(d, 'log', '-1', '--format=%P')), ' ')) -- a plain commit on top
+      h.eq('main work', vim.trim(h.git(d, 'log', '-1', '--format=%s', 'HEAD~1')))
+      h.eq('up-to-date', n:lua(rebase, 'main', 'feature'))
+
+      h.git(d, 'checkout', '-q', '-b', 'clash', 'main~1')
+      h.write(d .. '/c.txt', { 'clash' })
+      h.git(d, 'add', 'c.txt')
+      h.git(d, 'commit', '-q', '-m', 'clash work')
+      local ok, err = pcall(n.lua, n, rebase, 'main', 'clash')
+      h.ok(not ok and tostring(err):find('conflict in c.txt'), tostring(err))
+      h.eq({ 'clash' }, vim.fn.readfile(d .. '/c.txt'))
+      h.eq('', vim.trim(h.git(d, 'status', '--porcelain', '--untracked-files=no')))
+    end,
+  },
+  {
     'git write: commit the index, refuse an empty message',
     function()
       local d = h.repo()
