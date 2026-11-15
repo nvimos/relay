@@ -160,6 +160,36 @@ end
 --- then move `base` to the merge commit with update-ref, guarded by the commit it had before. The
 --- worktree is removed afterwards. Refused when `base` is checked out in the main checkout (the folder
 --- would be left behind) or when `base` moved. Returns the merge commit's sha.
+-- Move the branch `base` from `old` to `new`, guarded by `old` (update-ref): refused when it moved meanwhile.
+local function move_base(base, new, old, head)
+  local moved = pcall(repo.git, { 'update-ref', '-m', ('nvimos: merge %s into %s'):format(head, base), 'refs/heads/' .. base, new, old })
+  if not moved then
+    error(('nvimos: base moved during the merge: %s is at a new commit; nothing was saved'):format(base), 0)
+  end
+end
+
+-- Refuse before base moves when the folder has uncommitted or unsaved changes in the files the merge
+-- changes (it is on base and moves with it). Other files are not looked at.
+local function check_folder(paths, path)
+  if #paths == 0 then
+    return
+  end
+  local wanted = {}
+  for _, p in ipairs(paths) do
+    wanted[vim.fs.normalize(vim.fs.joinpath(repo.root(), p)):lower()] = p
+  end
+  for _, buf in ipairs(vim.api.nvim_list_bufs()) do
+    local name = vim.fs.normalize(vim.api.nvim_buf_get_name(buf)):lower()
+    if vim.bo[buf].modified and wanted[name] then
+      error('nvimos: unsaved changes in ' .. wanted[name] .. '; save or drop them first (the merge commit is kept in ' .. path .. ')', 0)
+    end
+  end
+  local dirty = vim.trim(repo.git({ 'status', '--porcelain', '--untracked-files=no', '--', unpack(paths) }))
+  if dirty ~= '' then
+    error('nvimos: uncommitted changes in ' .. table.concat(paths, ', ') .. ' (the merge commit is kept in ' .. path .. ')', 0)
+  end
+end
+
 function M.finish(base, head, path)
   local left = M.unmerged(path)
   if #left > 0 then
@@ -172,15 +202,22 @@ function M.finish(base, head, path)
       end
     end
   end
-  if vim.trim(repo.git({ 'branch', '--show-current' })) == base then
-    error(('nvimos: %s is checked out in the main checkout; switch to another branch first'):format(base), 0)
-  end
   local old = vim.trim(repo.git({ 'rev-parse', '--verify', 'refs/heads/' .. base }))
-  repo.git({ 'commit', '-q', '-m', ("Merge branch '%s' into %s"):format(head, base) }, { cwd = path })
+  -- a retry after a refused finish has the merge commit already: only commit a merge in progress
+  if pcall(repo.git, { 'rev-parse', '-q', '--verify', 'MERGE_HEAD' }, { cwd = path }) then
+    repo.git({ 'commit', '-q', '-m', ("Merge branch '%s' into %s"):format(head, base) }, { cwd = path })
+  end
   local commit = vim.trim(repo.git({ 'rev-parse', 'HEAD' }, { cwd = path }))
-  local moved = pcall(repo.git, { 'update-ref', '-m', 'nvimos: merge into ' .. base, 'refs/heads/' .. base, commit, old })
-  if not moved then
-    error(('nvimos: base moved during the merge: %s is at a new commit; the merge commit is kept in %s'):format(base, path), 0)
+  -- base checked out here: its folder moves with it. The files the merge changes must not hold
+  -- uncommitted or unsaved changes; everything else in the folder stays as it is.
+  local here = vim.trim(repo.git({ 'branch', '--show-current' })) == base
+  local changed = lines(repo.git({ 'diff', '--name-only', old, commit }))
+  if here then
+    check_folder(changed, path)
+  end
+  move_base(base, commit, old, head)
+  if here then
+    repo.git({ 'read-tree', '-m', '-u', old, commit })
   end
   remove_worktree(path)
   return commit
