@@ -1,32 +1,28 @@
-# The headless plugin tests (nvim -l test/run.lua) on Windows, where the GUI runs.
 name: test
 
 on:
   push:
+    branches: [main]
   pull_request:
-  workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
   test:
-    runs-on: windows-latest
-    timeout-minutes: 15
+    runs-on: ubuntu-latest
+    container: debian:stable-slim
     steps:
+      - name: install git and make
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends ca-certificates curl git make tar
       - uses: actions/checkout@v4
-      - uses: rhysd/action-setup-vim@v1
-        with:
-          neovim: true
-          version: stable
-      # The default %TEMP% is an 8.3 short path (C:\Users\RUNNER~1); git reports the long one, so
-      # the tests' path comparisons fail. The runner's own temp dir has no short parts. After the
-      # setup steps: they move downloads from TEMP to C:, which fails across drives.
-      - name: TEMP without short names
+      - name: install Neovim
         run: |
-          "TEMP=$env:RUNNER_TEMP" >> $env:GITHUB_ENV
-          "TMP=$env:RUNNER_TEMP" >> $env:GITHUB_ENV
-      - name: git identity for the test repos
-        run: |
-          git config --global user.name ci
-          git config --global user.email ci@example.com
-          git config --global init.defaultBranch main
-      - run: nvim --version
-      - run: nvim -l test/run.lua
+          curl -fsSL -o /tmp/nvim.tar.gz https://github.com/neovim/neovim/releases/download/stable/nvim-linux-x86_64.tar.gz
+          tar -C /usr/local --strip-components=1 -xzf /tmp/nvim.tar.gz
+          rm /tmp/nvim.tar.gz
+          nvim --version
+      - name: test
+        run: make test

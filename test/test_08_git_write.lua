@@ -156,7 +156,7 @@ return {
     end,
   },
   {
-    'git write: merge makes a merge commit on the base, checking it out first',
+    'git write: merge fast-forwards a base that head already contains, without checking it out',
     function()
       local d = h.repo()
       h.git(d, 'checkout', '-q', '-b', 'feature')
@@ -165,8 +165,9 @@ return {
       local n = h.nvim({ cwd = d }) -- on feature; the base main is not checked out
       local sha = n:lua("return require('nvimos.git').merge(...)", 'main', 'feature')
       h.eq(40, #sha)
-      h.eq('main', n:lua("return require('nvimos.git').status()").branch)
-      h.eq(2, #vim.split(vim.trim(h.git(d, 'log', '-1', '--format=%P')), ' '))
+      h.eq('feature', n:lua("return require('nvimos.git').status()").branch)
+      h.eq(sha, vim.trim(h.git(d, 'rev-parse', 'main')))
+      h.eq(1, #vim.split(vim.trim(h.git(d, 'log', '-1', '--format=%P', 'main')), ' '))
       h.eq({ 'feature' }, vim.fn.readfile(d .. '/b.txt'))
       local ok, err = pcall(n.lua, n, "return require('nvimos.git').merge(...)", 'main', 'feature')
       h.ok(not ok and tostring(err):find('nothing that main lacks'), tostring(err))

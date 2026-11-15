@@ -1,8 +1,11 @@
 # nvimos backend: a Lua plugin that streams Neovim's state to an RPC client.
-# Recipes run in pwsh (native Windows GNU make). Start with:  make help
+# On Windows, recipes run in pwsh (native GNU make). Elsewhere, make's default
+# shell, so `make test` works in CI. Start with:  make help
 
+ifeq ($(OS),Windows_NT)
 SHELL       := pwsh.exe
 .SHELLFLAGS := -NoProfile -NoLogo -Command
+endif
 
 PORT ?= 6666
 
