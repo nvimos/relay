@@ -83,19 +83,69 @@ local function unwatch()
   watchers = {}
 end
 
-local function watch_dir(dir, filter, why, prefix)
+-- libuv recursive fs events exist on Windows and macOS only. On Linux a watch sees
+-- one directory, so each subdirectory needs its own. `skip(rel)` drops a subdirectory
+-- (and anything under it) from that walk, so a git dir does not watch objects/.
+local RECURSE = vim.uv.os_uname().sysname ~= 'Linux'
+
+local function arm(dir, cb, recursive)
   local w = vim.uv.new_fs_event()
-  local ok = w:start(dir, { recursive = true }, function(err, name)
-    if err or not name or not filter(name) then
-      return
-    end
-    M.hint(why, (prefix or '') .. name:gsub('\\', '/'))
-  end)
+  local ok = w:start(dir, { recursive = recursive }, cb)
   if ok then
     watchers[#watchers + 1] = w
-  else
-    w:close()
+    return true
   end
+  w:close()
+  return false
+end
+
+local function watch_dir(dir, filter, why, prefix, skip)
+  local function hint(name)
+    name = name:gsub('\\', '/')
+    if filter(name) then
+      M.hint(why, (prefix or '') .. name)
+    end
+  end
+  if RECURSE and arm(dir, function(err, name)
+    if not err and name then
+      hint(name)
+    end
+  end, true) then
+    return
+  end
+  local seen = {}
+  local function watch_one(path, rel)
+    path = vim.fs.normalize(path)
+    if seen[path] then
+      return
+    end
+    seen[path] = true
+    arm(path, function(err, name)
+      if err or not name then
+        return
+      end
+      name = name:gsub('\\', '/')
+      local relname = rel == '' and name or (rel .. '/' .. name)
+      local st = vim.uv.fs_stat(path .. '/' .. name)
+      if st and st.type == 'directory' and not (skip and skip(relname)) then
+        watch_one(path .. '/' .. name, relname)
+      end
+      hint(relname)
+    end, false)
+  end
+  local function walk(path, rel)
+    for name, typ in vim.fs.dir(path) do
+      if typ == 'directory' then
+        local relname = rel == '' and name or (rel .. '/' .. name)
+        if not (skip and skip(relname)) then
+          watch_one(path .. '/' .. name, relname)
+          walk(path .. '/' .. name, relname)
+        end
+      end
+    end
+  end
+  watch_one(dir, '')
+  walk(dir, '')
 end
 
 -- Planning dirs of the Tasks mode (in the planning folder, see tracking.lua): edits there (by an agent, a CLI, an editor) send why=files.
@@ -110,9 +160,12 @@ local function rewatch()
   if not info then
     return
   end
-  watch_dir(info.git_dir, relevant, 'fs')
+  local function skip_git(rel)
+    return rel == 'objects' or rel:match('^objects/') or rel == 'logs' or rel:match('^logs/')
+  end
+  watch_dir(info.git_dir, relevant, 'fs', nil, skip_git)
   if info.common_dir ~= info.git_dir then
-    watch_dir(info.common_dir, relevant, 'fs')
+    watch_dir(info.common_dir, relevant, 'fs', nil, skip_git)
   end
   -- the planning folder: the repo root, or the folder its .nvimos names
   local ok, planning = pcall(tracking.root)
