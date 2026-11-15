@@ -53,7 +53,7 @@ end
 
 --- Run git in `dir`; error on failure; return stdout.
 function M.git(dir, ...)
-  local cmd = { 'git', '-c', 'user.name=Test', '-c', 'user.email=test@example.com', '-c', 'core.autocrlf=false', ... }
+  local cmd = { 'git', '-c', 'core.fsmonitor=false', '-c', 'user.name=Test', '-c', 'user.email=test@example.com', '-c', 'core.autocrlf=false', ... }
   local r = vim.system(cmd, { cwd = dir, text = true }):wait()
   if r.code ~= 0 then
     error(('git %s: %s'):format(table.concat({ ... }, ' '), r.stderr), 2)
@@ -69,6 +69,8 @@ function M.repo()
   M.git(d, 'config', 'user.name', 'Test')
   M.git(d, 'config', 'user.email', 'test@example.com')
   M.git(d, 'config', 'core.autocrlf', 'false')
+  -- No fsmonitor: git starts a background daemon per repo that outlives the test.
+  M.git(d, 'config', 'core.fsmonitor', 'false')
   M.write(d .. '/a.txt', { 'one', 'two', 'three', 'four', 'five' })
   M.write(d .. '/b.txt', { 'bee' })
   M.git(d, 'add', '.')
