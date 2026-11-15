@@ -287,6 +287,15 @@ function M.checkout(branch, how)
   return true
 end
 
+-- Move the branch `base` from `old` to `new` with update-ref: refused when it moved meanwhile, and
+-- the error says so, so nothing is overwritten.
+local function move_base(base, new, old, head)
+  local moved = pcall(repo.git, { 'update-ref', '-m', ('nvimos: merge %s into %s'):format(head, base), 'refs/heads/' .. base, new, old })
+  if not moved then
+    error(('nvimos: base moved during the merge: %s is at a new commit; nothing was saved'):format(base), 0)
+  end
+end
+
 -- Merge `head` into `base` without a work tree, for a base that is not checked out here: the merge
 -- commit is made in git's object store (merge-tree, commit-tree), and base moves with update-ref
 -- guarded by its old value, so a base that moved meanwhile is not overwritten. The checkout, its
@@ -308,6 +317,12 @@ local function clean_merge(base, head)
   end
   local old = vim.trim(repo.git({ 'rev-parse', '--verify', 'refs/heads/' .. base }))
   local head_sha = vim.trim(repo.git({ 'rev-parse', '--verify', 'refs/heads/' .. head }))
+  -- head already has all of base (it was rebased onto it): base moves forward, with no merge commit,
+  -- so the history stays one straight line
+  if vim.trim(repo.git({ 'merge-base', old, head_sha })) == old then
+    move_base(base, head_sha, old, head)
+    return head_sha
+  end
   -- merge-tree exits 0 when clean, 1 with conflicts (its output then starts with the tree and lists the files)
   local r = vim.system({ 'git', '-c', 'core.quotepath=false', 'merge-tree', '--write-tree', '--name-only', base, head },
     { cwd = root, text = true }):wait()
@@ -329,10 +344,7 @@ local function clean_merge(base, head)
     'commit-tree', vim.trim(out[1]), '-p', old, '-p', head_sha,
     '-m', ("Merge branch '%s' into %s"):format(head, base),
   }))
-  local moved = pcall(repo.git, { 'update-ref', '-m', ('nvimos: merge %s into %s'):format(head, base), 'refs/heads/' .. base, commit, old })
-  if not moved then
-    error(('nvimos: base moved during the merge: %s is at a new commit; nothing was saved'):format(base), 0)
-  end
+  move_base(base, commit, old, head)
   return commit
 end
 
