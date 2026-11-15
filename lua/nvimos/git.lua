@@ -287,9 +287,59 @@ function M.checkout(branch, how)
   return true
 end
 
---- Merge `head` into the local branch `base` with a merge commit (`--no-ff`), checking `base` out
---- first when it is not the current branch. Local only: nothing is pushed. A conflict is undone
---- (`merge --abort`) and reported with the files; returns the new HEAD's sha.
+-- Merge `head` into `base` without a work tree, for a base that is not checked out here: the merge
+-- commit is made in git's object store (merge-tree, commit-tree), and base moves with update-ref
+-- guarded by its old value, so a base that moved meanwhile is not overwritten. The checkout, its
+-- files and its buffers are not touched. A conflict changes nothing and names the files.
+local function clean_merge(base, head)
+  require_clean('merging', true)
+  local root = repo.root()
+  -- base checked out in another worktree (an agent's, say): update-ref would leave that folder stale
+  local where = nil
+  local path = nil
+  for _, line in ipairs(lines(repo.git({ 'worktree', 'list', '--porcelain' }))) do
+    path = line:match('^worktree (.+)$') or path
+    if line == 'branch refs/heads/' .. base then
+      where = path
+    end
+  end
+  if where and vim.fs.normalize(where) ~= vim.fs.normalize(root) then
+    error(('nvimos: %s is checked out in %s; merge it there or detach that worktree'):format(base, where), 0)
+  end
+  local old = vim.trim(repo.git({ 'rev-parse', '--verify', 'refs/heads/' .. base }))
+  local head_sha = vim.trim(repo.git({ 'rev-parse', '--verify', 'refs/heads/' .. head }))
+  -- merge-tree exits 0 when clean, 1 with conflicts (its output then starts with the tree and lists the files)
+  local r = vim.system({ 'git', '-c', 'core.quotepath=false', 'merge-tree', '--write-tree', '--name-only', base, head },
+    { cwd = root, text = true }):wait()
+  if r.code ~= 0 and r.code ~= 1 then
+    error('nvimos: git merge-tree: ' .. vim.trim(r.stderr ~= '' and r.stderr or r.stdout), 0)
+  end
+  local out = lines(r.stdout)
+  if r.code == 1 then
+    local files = {}
+    for i = 2, #out do
+      if out[i] == '' then
+        break
+      end
+      table.insert(files, out[i])
+    end
+    error('nvimos: merge conflict in ' .. table.concat(files, ', ') .. ' (nothing changed)', 0)
+  end
+  local commit = vim.trim(repo.git({
+    'commit-tree', vim.trim(out[1]), '-p', old, '-p', head_sha,
+    '-m', ("Merge branch '%s' into %s"):format(head, base),
+  }))
+  local moved = pcall(repo.git, { 'update-ref', '-m', ('nvimos: merge %s into %s'):format(head, base), 'refs/heads/' .. base, commit, old })
+  if not moved then
+    error(('nvimos: base moved during the merge: %s is at a new commit; nothing was saved'):format(base), 0)
+  end
+  return commit
+end
+
+--- Merge `head` into the local branch `base` with a merge commit (`--no-ff`). When `base` is not the
+--- branch checked out here, the merge is made without a work tree (see clean_merge). Local only:
+--- nothing is pushed. A conflict on the checked-out path is undone (`merge --abort`) and reported with
+--- the files; returns the new base's sha.
 function M.merge(base, head)
   if base == head then
     error('nvimos: base and head are the same', 0)
@@ -301,11 +351,11 @@ function M.merge(base, head)
   if vim.trim(repo.git({ 'rev-list', '--count', base .. '..' .. head })) == '0' then
     error(('nvimos: %s has nothing that %s lacks'):format(head, base), 0)
   end
-  require_clean('merging')
   local current = vim.trim(repo.git({ 'branch', '--show-current' }))
   if current ~= base then
-    repo.git({ 'checkout', '-q', base })
+    return clean_merge(base, head)
   end
+  require_clean('merging')
   local merged, err = pcall(repo.git, { 'merge', '--no-ff', '-m', ("Merge branch '%s' into %s"):format(head, base), head })
   if not merged then
     local files = vim.trim(repo.git({ 'diff', '--name-only', '--diff-filter=U' }))
