@@ -35,11 +35,11 @@ return {
     'dirs: list uses genja-startdirs ranked() when it is there',
     function()
       local n = h.nvim()
-      n:lua("package.loaded['genja-startdirs'] = { ranked = function() return { '~', 'C:\\\\x' } end }")
+      n:lua("package.loaded['genja-startdirs'] = { ranked = function() return { '~', 'foo//bar' } end }")
       local r = n:lua("return require('nvimos.dirs').list()")
       h.eq('startdirs', r.source)
       h.eq(2, #r.dirs)
-      h.eq('C:/x', r.dirs[2])
+      h.eq('foo/bar', r.dirs[2])
     end,
   },
   {
